@@ -49,7 +49,7 @@
 <h1>gemcard</h1>
 <p class="lead">RubyGems の gem URL を X / Slack の OGP カード対応の URL に変換します。</p>
 <input id="input" type="text" placeholder="https://rubygems.org/gems/&lt;name&gt; または gem 名">
-<div class="hint">例: <code>rails</code>, <code>sinatra</code>, <code>https://rubygems.org/gems/sidekiq</code></div>
+<div class="hint">例: <code>rails</code>, <code>https://rubygems.org/gems/sidekiq</code>, <code>https://rubygems.org/gems/ridgepole/versions/3.2.2</code></div>
 
 <div id="preparing" class="preparing">
   <div class="label">URL を準備中...</div>
@@ -98,14 +98,21 @@ const cardImg = document.getElementById('card-img');
 const cardTitle = document.getElementById('card-title');
 const cardDesc = document.getElementById('card-desc');
 
-function extractGemName(s) {
+function parseGemInput(s) {
   s = (s || '').trim();
   if (!s) return null;
+  const withVersion = s.match(/rubygems\.org\/gems\/([a-zA-Z0-9_.-]+)\/versions\/([a-zA-Z0-9._-]+)/i);
+  if (withVersion) return { name: withVersion[1], version: withVersion[2] };
   const m = s.match(/rubygems\.org\/gems\/([a-zA-Z0-9_.-]+)/i);
-  if (m) return m[1];
-  if (/^[a-zA-Z0-9_.-]+$/.test(s)) return s;
+  if (m) return { name: m[1], version: null };
+  if (/^[a-zA-Z0-9_.-]+$/.test(s)) return { name: s, version: null };
   return null;
 }
+
+function gemKey(g) { return g.version ? `${g.name}@${g.version}` : g.name; }
+function gemPath(g) { return g.version ? `/gems/${encodeURIComponent(g.name)}/versions/${encodeURIComponent(g.version)}` : `/gems/${encodeURIComponent(g.name)}`; }
+function apiPath(g) { return g.version ? `/api/preview/${encodeURIComponent(g.name)}/versions/${encodeURIComponent(g.version)}` : `/api/preview/${encodeURIComponent(g.name)}`; }
+function imgPath(g) { return g.version ? `/img/${encodeURIComponent(g.name)}/versions/${encodeURIComponent(g.version)}.png` : `/img/${encodeURIComponent(g.name)}.png`; }
 
 function formatDownloads(n) {
   if (n >= 1e9) return `${(n/1e9).toFixed(1)}B`;
@@ -114,7 +121,7 @@ function formatDownloads(n) {
   return String(n);
 }
 
-let currentName = null;
+let currentKey = null;
 let fetchToken = 0;
 let debounceTimer = null;
 
@@ -130,7 +137,7 @@ function showSkeleton() {
   skeleton.classList.add('show');
 }
 
-function showCard(data) {
+function showCard(data, g) {
   cardLink.href = data.rubygemsUrl;
   const title = data.name + (data.version ? ` ${data.version}` : '');
   cardTitle.textContent = title;
@@ -138,7 +145,7 @@ function showCard(data) {
   if (data.authors) metaParts.push(`by ${data.authors}`);
   if (data.downloads) metaParts.push(`${formatDownloads(data.downloads)} downloads`);
   cardDesc.textContent = data.info ? data.info : metaParts.join(' • ');
-  cardImg.src = `${location.origin}/img/${encodeURIComponent(data.name)}.png`;
+  cardImg.src = `${location.origin}${imgPath(g)}?v=${Date.now()}`;
   cardImgWrap.classList.remove('empty');
   cardImg.style.display = '';
   previewLabel.style.display = 'block';
@@ -146,8 +153,8 @@ function showCard(data) {
   card.classList.add('show');
 }
 
-function showLink(name) {
-  const out = `${location.origin}/gems/${encodeURIComponent(name)}`;
+function showLink(g) {
+  const out = `${location.origin}${gemPath(g)}`;
   link.textContent = out;
   link.href = out;
   result.classList.add('show');
@@ -167,11 +174,11 @@ function hideResult() {
   preparing.classList.remove('show');
 }
 
-async function loadPreview(name) {
+async function loadPreview(g) {
   const token = ++fetchToken;
   showSkeleton();
   try {
-    const res = await fetch(`/api/preview/${encodeURIComponent(name)}`);
+    const res = await fetch(apiPath(g));
     if (token !== fetchToken) return;
     if (!res.ok) throw new Error('fetch failed');
     const data = await res.json();
@@ -181,8 +188,8 @@ async function loadPreview(name) {
       showError('gem が見つかりません');
       return;
     }
-    showCard(data);
-    showLink(data.name);
+    showCard(data, g);
+    showLink(g);
   } catch {
     if (token !== fetchToken) return;
     hidePreview();
@@ -191,9 +198,9 @@ async function loadPreview(name) {
 }
 
 function update() {
-  const name = extractGemName(input.value);
-  if (!name) {
-    currentName = null;
+  const g = parseGemInput(input.value);
+  if (!g) {
+    currentKey = null;
     hidePreview();
     if (input.value.trim()) {
       showError('gem 名を検出できませんでした');
@@ -204,12 +211,13 @@ function update() {
     return;
   }
 
-  if (name !== currentName) {
-    currentName = name;
+  const key = gemKey(g);
+  if (key !== currentKey) {
+    currentKey = key;
     hideResult();
     preparing.classList.add('show');
     if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => loadPreview(name), 350);
+    debounceTimer = setTimeout(() => loadPreview(g), 350);
   }
 }
 
