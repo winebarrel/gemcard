@@ -14,6 +14,17 @@ export function renderOgp({ gem, imageUrl }: OgpInput): string {
   const img = imageUrl ? htmlEscape(imageUrl) : "";
   const card = img ? "summary_large_image" : "summary";
 
+  const imgTags = img
+    ? `<meta property="og:image" content="${img}">
+<meta property="og:image:secure_url" content="${img}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${t}">
+<meta name="twitter:image" content="${img}">
+<meta name="twitter:image:alt" content="${t}">`
+    : "";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,11 +34,10 @@ export function renderOgp({ gem, imageUrl }: OgpInput): string {
 <meta property="og:type" content="website">
 <meta property="og:title" content="${t}">
 <meta property="og:url" content="${url}">
-${img ? `<meta property="og:image" content="${img}">` : ""}
+${imgTags}
 ${d ? `<meta property="og:description" content="${d}">` : ""}
 <meta name="twitter:card" content="${card}">
 <meta name="twitter:title" content="${t}">
-${img ? `<meta name="twitter:image" content="${img}">` : ""}
 ${d ? `<meta name="twitter:description" content="${d}">` : ""}
 <meta http-equiv="refresh" content="0;url=${url}">
 </head>
