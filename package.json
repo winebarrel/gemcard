@@ -11,7 +11,7 @@
     "format": "biome check --write"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.8",
+    "@biomejs/biome": "2.5.9",
     "@cloudflare/workers-types": "^5.0.0",
     "typescript": "^7.0.0",
     "wrangler": "^4.114.0"
